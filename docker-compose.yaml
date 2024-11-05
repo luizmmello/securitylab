@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  wazuh:
+    image: wazuh/wazuh-manager:latest
+    hostname: wazuh-manager
+    restart: always
+    ports:
+      - "1514:1514"  # Agent registration
+      - "1515:1515"  # Communication with agents
+      - "514:514/udp"  # Syslog
+    volumes:
+      - wazuh_api_configuration:/var/ossec/api/configuration
+      - wazuh_etc:/var/ossec/etc
+      - wazuh_logs:/var/ossec/logs
+      - wazuh_queue:/var/ossec/queue
+      - wazuh_var_multigroups:/var/ossec/var/multigroups
+      - wazuh_integrations:/var/ossec/integrations
+      - wazuh_active_response:/var/ossec/active-response/bin
+      - wazuh_agentless:/var/ossec/agentless
+      - wazuh_wodles:/var/ossec/wodles
+
+  wazuh-indexer:
+    image: wazuh/wazuh-indexer:latest
+    hostname: wazuh-indexer
+    restart: always
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - cluster.name=wazuh-cluster
+    volumes:
+      - wazuh-indexer-data:/var/lib/wazuh-indexer
+
+  wazuh-dashboard:
+    image: wazuh/wazuh-dashboard:latest
+    hostname: wazuh-dashboard
+    ports:
+      - "443:5601"
+    environment:
+      - WZ_URL=https://wazuh-indexer:9200
+      - WZ_USERNAME=admin
+      - WZ_PASSWORD=SecretPassword
+    depends_on:
+      - wazuh-indexer
+
+  kali:
+    build: ./kali
+    privileged: true
+    volumes:
+      - ./kali:/root/.ssh
+    ports:
+      - "10022:22"
+    tty: true
+
+  metasploitable:
+    build: ./metasploitable2
+    container_name: metasploitable2
+    ports:
+      - "21:21"
+      - "22:22"
+      - "80:80"
+      - "443:443"
+      - "139:139"
+      - "445:445"
+    privileged: true  # For BPF support in Osquery
+
+  dvwa:
+    build: ./dvwa
+    container_name: dvwa
+    ports:
+      - "8080:80"
+    privileged: true  # For BPF support in Osquery
+    environment:
+      - MYSQL_USER=dvwa
+      - MYSQL_PASS=password
+      - MYSQL_DB=dvwa
+
+  juice-shop:
+    image: bkimminich/juice-shop
+    container_name: juice_shop
+    ports:
+      - "3000:3000"
+
+volumes:
+  wazuh_api_configuration:
+  wazuh_etc:
+  wazuh_logs:
+  wazuh_queue:
+  wazuh_var_multigroups:
+  wazuh_integrations:
+  wazuh_active_response:
+  wazuh_agentless:
+  wazuh_wodles:
+  wazuh-indexer-data:
+
+networks:
+  default:
+    name: pentest_lab
